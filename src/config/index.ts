@@ -1,21 +1,24 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
-import type { Config, ValueType } from "../types.js";
+import type { Config, EnumTypeConfig, TypeConfigValue, ValueType } from "../types.js";
 
-const VALID_TYPES: ValueType[] = ["string", "number", "boolean", "url"];
+const SIMPLE_TYPES: ValueType[] = ["string", "number", "boolean", "url", "port", "email"];
+const VALID_FRAMEWORKS = ["auto", "nextjs", "vite", "none"];
 
-export function loadConfig(cwd: string): Config | null {
-  const configPath = resolve(cwd, "env-doctor.json");
+export function loadConfig(cwd: string, configPath?: string): Config | null {
+  const resolved = configPath
+    ? resolve(cwd, configPath)
+    : resolve(cwd, "env-doctor.json");
 
-  if (!existsSync(configPath)) {
+  if (!existsSync(resolved)) {
     return null;
   }
 
   let raw: string;
   try {
-    raw = readFileSync(configPath, "utf-8");
+    raw = readFileSync(resolved, "utf-8");
   } catch {
-    throw new Error(`Could not read config file: ${configPath}`);
+    throw new Error(`Could not read config file: ${resolved}`);
   }
 
   let parsed: unknown;
@@ -23,7 +26,7 @@ export function loadConfig(cwd: string): Config | null {
     parsed = JSON.parse(raw);
   } catch {
     throw new Error(
-      `Config file is not valid JSON: ${configPath}\nMake sure env-doctor.json contains valid JSON.`,
+      `Config file is not valid JSON: ${resolved}\nMake sure env-doctor.json contains valid JSON.`,
     );
   }
 
@@ -44,14 +47,9 @@ function validateConfig(raw: unknown): Config {
     if (typeof obj.types !== "object" || obj.types === null || Array.isArray(obj.types)) {
       throw new Error(`"types" in config must be an object like { "PORT": "number" }.`);
     }
-    const types: Record<string, ValueType> = {};
+    const types: Record<string, TypeConfigValue> = {};
     for (const [key, val] of Object.entries(obj.types as Record<string, unknown>)) {
-      if (typeof val !== "string" || !VALID_TYPES.includes(val as ValueType)) {
-        throw new Error(
-          `Invalid type "${String(val)}" for "${key}" in config. Valid types: ${VALID_TYPES.join(", ")}.`,
-        );
-      }
-      types[key] = val as ValueType;
+      types[key] = validateTypeValue(key, val);
     }
     config.types = types;
   }
@@ -73,5 +71,58 @@ function validateConfig(raw: unknown): Config {
     config.dangerousValues = obj.dangerousValues as string[];
   }
 
+  if (obj.framework !== undefined) {
+    if (typeof obj.framework !== "string" || !VALID_FRAMEWORKS.includes(obj.framework)) {
+      throw new Error(
+        `"framework" in config must be one of: ${VALID_FRAMEWORKS.join(", ")}. Got "${String(obj.framework)}".`,
+      );
+    }
+    config.framework = obj.framework as Config["framework"];
+  }
+
+  if (obj.files !== undefined) {
+    if (!Array.isArray(obj.files) || !obj.files.every((v) => typeof v === "string")) {
+      throw new Error(`"files" in config must be an array of file paths (strings).`);
+    }
+    config.files = obj.files as string[];
+  }
+
   return config;
+}
+
+/**
+ * Validate a single type config value.
+ * Supports both simple string types ("number") and enum objects ({ type: "enum", values: [...] }).
+ * Also supports Phase 1 configs where enum types were not available — any Phase 1 ValueType string is still valid.
+ */
+function validateTypeValue(key: string, val: unknown): TypeConfigValue {
+  // Simple string type
+  if (typeof val === "string") {
+    if (!SIMPLE_TYPES.includes(val as ValueType)) {
+      throw new Error(
+        `Invalid type "${val}" for "${key}" in config. Valid types: ${SIMPLE_TYPES.join(", ")}, or { "type": "enum", "values": [...] }.`,
+      );
+    }
+    return val as ValueType;
+  }
+
+  // Enum object type
+  if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+    const obj = val as Record<string, unknown>;
+    if (obj.type !== "enum") {
+      throw new Error(
+        `Object type for "${key}" must have "type": "enum". Got "${String(obj.type)}".`,
+      );
+    }
+    if (!Array.isArray(obj.values) || obj.values.length === 0 || !obj.values.every((v) => typeof v === "string")) {
+      throw new Error(
+        `Enum type for "${key}" must have a "values" array of strings.`,
+      );
+    }
+    return { type: "enum", values: obj.values } as EnumTypeConfig;
+  }
+
+  throw new Error(
+    `Invalid type config for "${key}". Expected a type string or { "type": "enum", "values": [...] }.`,
+  );
 }

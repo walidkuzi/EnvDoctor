@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { analyze } from "../src/core/analyze.js";
 import { parseEnvContent } from "../src/parser/env.js";
+import type { Config } from "../src/types.js";
 
-function run(envContent: string, exampleContent: string, config = null) {
+function run(envContent: string, exampleContent: string, config: Config | null = null) {
   return analyze({
     env: parseEnvContent(envContent),
     example: parseEnvContent(exampleContent),
@@ -47,11 +48,14 @@ describe("analyze", () => {
     expect(invalid[0].key).toBe("PORT");
   });
 
-  it("reports dangerous values", () => {
+  it("reports dangerous or placeholder values", () => {
     const result = run("JWT_SECRET=123", "JWT_SECRET=your_secret_here");
-    const dangerous = result.issues.filter((i) => i.kind === "dangerous_value");
-    expect(dangerous).toHaveLength(1);
-    expect(dangerous[0].key).toBe("JWT_SECRET");
+    // "123" is in the dangerous values list, so it should be flagged
+    const flagged = result.issues.filter(
+      (i) => i.kind === "dangerous_value" || i.kind === "placeholder_value",
+    );
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0].key).toBe("JWT_SECRET");
   });
 
   it("uses config types over inference", () => {
@@ -75,8 +79,10 @@ describe("analyze", () => {
     const result = run("API_KEY=custom_bad", "API_KEY=real_key", {
       dangerousValues: ["custom_bad"],
     });
-    const dangerous = result.issues.filter((i) => i.kind === "dangerous_value");
-    expect(dangerous).toHaveLength(1);
+    const flagged = result.issues.filter(
+      (i) => i.kind === "dangerous_value" || i.kind === "placeholder_value",
+    );
+    expect(flagged).toHaveLength(1);
   });
 
   it("does not flag valid values as dangerous", () => {
@@ -84,7 +90,33 @@ describe("analyze", () => {
       "APP_NAME=my-production-app",
       "APP_NAME=my-app",
     );
-    const dangerous = result.issues.filter((i) => i.kind === "dangerous_value");
-    expect(dangerous).toHaveLength(0);
+    const flagged = result.issues.filter(
+      (i) => i.kind === "dangerous_value" || i.kind === "placeholder_value",
+    );
+    expect(flagged).toHaveLength(0);
+  });
+
+  it("validates enum types from config", () => {
+    const result = run("NODE_ENV=prod", "NODE_ENV=development", {
+      types: {
+        NODE_ENV: { type: "enum", values: ["development", "test", "production"] },
+      },
+    });
+    const invalid = result.issues.filter((i) => i.kind === "invalid_enum");
+    expect(invalid).toHaveLength(1);
+    expect(invalid[0].message).toContain("prod");
+  });
+
+  it("validates enum types from inference", () => {
+    const result = run("NODE_ENV=prod", "NODE_ENV=development");
+    const invalid = result.issues.filter((i) => i.kind === "invalid_enum");
+    expect(invalid).toHaveLength(1);
+    expect(invalid[0].key).toBe("NODE_ENV");
+  });
+
+  it("passes valid enum values", () => {
+    const result = run("NODE_ENV=production", "NODE_ENV=development");
+    const invalid = result.issues.filter((i) => i.kind === "invalid_enum");
+    expect(invalid).toHaveLength(0);
   });
 });

@@ -7,6 +7,9 @@ describe("checkDangerousValue", () => {
     expect(checkDangerousValue("ANY_KEY", "password").isDangerous).toBe(true);
     expect(checkDangerousValue("ANY_KEY", "your_key_here").isDangerous).toBe(true);
     expect(checkDangerousValue("ANY_KEY", "replace_me").isDangerous).toBe(true);
+    expect(checkDangerousValue("ANY_KEY", "tbd").isDangerous).toBe(true);
+    expect(checkDangerousValue("ANY_KEY", "null").isDangerous).toBe(true);
+    expect(checkDangerousValue("ANY_KEY", "undefined").isDangerous).toBe(true);
   });
 
   it("flags short secrets for secret-like keys", () => {
@@ -35,5 +38,27 @@ describe("checkDangerousValue", () => {
     expect(
       checkDangerousValue("KEY", "my_custom_bad", ["my_custom_bad"]).isDangerous,
     ).toBe(true);
+  });
+
+  it("flags repeated characters", () => {
+    expect(checkDangerousValue("KEY", "aaaa").isDangerous).toBe(true);
+    expect(checkDangerousValue("KEY", "xxx").isDangerous).toBe(true);
+  });
+
+  it("flags template placeholders", () => {
+    expect(checkDangerousValue("KEY", "<your-key>").isDangerous).toBe(true);
+  });
+
+  it("flags documentation placeholder patterns", () => {
+    expect(checkDangerousValue("KEY", "your_secret").isDangerous).toBe(true);
+    expect(checkDangerousValue("KEY", "value_here").isDangerous).toBe(true);
+  });
+
+  it("returns correct kind for placeholders vs dangerous", () => {
+    const placeholder = checkDangerousValue("KEY", "changeme");
+    expect(placeholder.kind).toBe("placeholder_value");
+
+    const weak = checkDangerousValue("JWT_SECRET", "abc");
+    expect(weak.kind).toBe("dangerous_value");
   });
 });

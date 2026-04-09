@@ -1,6 +1,6 @@
 {
   "name": "env-doctor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Diagnose .env issues in seconds. Find missing, invalid, and insecure environment variables.",
   "type": "module",
   "bin": {

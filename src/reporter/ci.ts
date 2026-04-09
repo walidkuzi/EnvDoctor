@@ -1,22 +1,23 @@
 import type { AnalysisResult, Issue } from "../types.js";
 
-export function renderCIAnalysis(result: AnalysisResult): string {
+export function renderCIAnalysis(result: AnalysisResult, quiet = false): string {
   const lines: string[] = [];
 
   if (result.issues.length === 0) {
-    lines.push("env-doctor: OK");
+    if (!quiet) lines.push("env-doctor: OK");
     return lines.join("\n");
   }
 
-  for (const issue of result.issues) {
-    const prefix = severityPrefix(issue);
-    lines.push(`${prefix} ${issue.key}: ${issue.message}`);
+  if (!quiet) {
+    for (const issue of result.issues) {
+      const prefix = severityPrefix(issue);
+      lines.push(`${prefix} ${issue.key}: ${issue.message}`);
+    }
+    lines.push("");
   }
 
-  const { errors, warnings, infos } = result.summary;
-  lines.push("");
   lines.push(
-    `env-doctor: ${errors} error(s), ${warnings} warning(s), ${infos} info(s)`,
+    `env-doctor: ${result.summary.errors} error(s), ${result.summary.warnings} warning(s), ${result.summary.infos} info(s)`,
   );
 
   return lines.join("\n");

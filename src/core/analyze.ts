@@ -2,18 +2,49 @@ import type {
   AnalysisResult,
   Config,
   EnvEntry,
+  EnumTypeConfig,
   Issue,
   ParseResult,
   Summary,
   ValueType,
 } from "../types.js";
-import { inferType, typeExample, validateType } from "../validators/index.js";
+import { validateType, typeExample } from "../validators/index.js";
+import { inferVariable, getKnownEnumValues } from "../inference/index.js";
 import { checkDangerousValue } from "./dangerous.js";
 
 interface AnalyzeInput {
   env: ParseResult;
   example: ParseResult;
   config: Config | null;
+}
+
+/**
+ * Resolve the expected type and enum values for a variable.
+ * Priority: config > inference.
+ */
+function resolveType(
+  key: string,
+  config: Config | null,
+  exampleValue?: string,
+  envValue?: string,
+): { type: ValueType; enumValues?: string[]; source: "config" | "inferred" } | null {
+  // Check config first
+  const configType = config?.types?.[key];
+  if (configType) {
+    if (typeof configType === "object" && configType.type === "enum") {
+      return { type: "enum", enumValues: configType.values, source: "config" };
+    }
+    return { type: configType as ValueType, source: "config" };
+  }
+
+  // Fall back to inference
+  const inferred = inferVariable(key, envValue, exampleValue);
+  if (inferred.type === "string") return null; // Don't validate plain strings
+  return {
+    type: inferred.type,
+    enumValues: inferred.enumValues,
+    source: "inferred",
+  };
 }
 
 export function analyze({ env, example, config }: AnalyzeInput): AnalysisResult {
@@ -68,7 +99,7 @@ export function analyze({ env, example, config }: AnalyzeInput): AnalysisResult 
     }
   }
 
-  // --- Empty, invalid type, and dangerous values (for keys present in both) ---
+  // --- Empty, invalid type, and dangerous values (for keys present in .env) ---
   for (const key of actualKeys) {
     const entry = envMap.get(key)!;
     const value = entry.value;
@@ -85,29 +116,37 @@ export function analyze({ env, example, config }: AnalyzeInput): AnalysisResult 
           ? `${key}=${exampleMap.get(key)!.value}`
           : undefined,
       });
-      // Skip further checks for empty values
       continue;
     }
 
-    // Determine expected type
-    const configType = config?.types?.[key];
+    // Resolve expected type
     const exampleEntry = exampleMap.get(key);
-    const inferredType: ValueType | null = exampleEntry?.value
-      ? inferType(exampleEntry.value)
-      : null;
-    const expectedType = configType ?? inferredType;
+    const resolved = resolveType(key, config, exampleEntry?.value, value);
 
-    // Type validation (skip pure "string" — anything non-empty is valid)
-    if (expectedType && expectedType !== "string") {
-      if (!validateType(value, expectedType)) {
-        issues.push({
-          kind: "invalid_type",
-          severity: "warning",
-          key,
-          message: `${key} should be a ${expectedType}, but found "${value}".`,
-          hint: `Set a valid ${expectedType} value.`,
-          example: `${key}=${typeExample(expectedType)}`,
-        });
+    if (resolved) {
+      if (resolved.type === "enum") {
+        const allowed = resolved.enumValues ?? getKnownEnumValues(key) ?? [];
+        if (allowed.length > 0 && !allowed.includes(value)) {
+          issues.push({
+            kind: "invalid_enum",
+            severity: "warning",
+            key,
+            message: `${key} should be one of: ${allowed.join(", ")}. Found "${value}".`,
+            hint: `Set ${key} to one of the allowed values.`,
+            example: `${key}=${allowed[0]}`,
+          });
+        }
+      } else if (resolved.type !== "string") {
+        if (!validateType(value, resolved.type)) {
+          issues.push({
+            kind: "invalid_type",
+            severity: "warning",
+            key,
+            message: `${key} should be a ${resolved.type}, but found "${value}".`,
+            hint: `Set a valid ${resolved.type} value.`,
+            example: `${key}=${typeExample(resolved.type)}`,
+          });
+        }
       }
     }
 
@@ -119,7 +158,7 @@ export function analyze({ env, example, config }: AnalyzeInput): AnalysisResult 
     );
     if (dangerCheck.isDangerous) {
       issues.push({
-        kind: "dangerous_value",
+        kind: dangerCheck.kind,
         severity: "warning",
         key,
         message: `${key} looks weak: "${value}".`,

@@ -3,9 +3,11 @@ import {
   validateNumber,
   validateBoolean,
   validateUrl,
+  validatePort,
+  validateEmail,
   validateType,
-  inferType,
 } from "../src/validators/index.js";
+import { inferTypeFromValue } from "../src/inference/index.js";
 
 describe("validateNumber", () => {
   it("accepts integers", () => {
@@ -62,10 +64,47 @@ describe("validateUrl", () => {
     expect(validateUrl("http://localhost:3000")).toBe(true);
   });
 
+  it("accepts database URLs", () => {
+    expect(validateUrl("postgres://user:pass@localhost:5432/db")).toBe(true);
+    expect(validateUrl("redis://localhost:6379")).toBe(true);
+    expect(validateUrl("mongodb://localhost:27017/mydb")).toBe(true);
+  });
+
   it("rejects non-URLs", () => {
     expect(validateUrl("not-a-url")).toBe(false);
     expect(validateUrl("")).toBe(false);
     expect(validateUrl("ftp://files.example.com")).toBe(false);
+  });
+});
+
+describe("validatePort", () => {
+  it("accepts valid ports", () => {
+    expect(validatePort("80")).toBe(true);
+    expect(validatePort("3000")).toBe(true);
+    expect(validatePort("8080")).toBe(true);
+    expect(validatePort("65535")).toBe(true);
+  });
+
+  it("rejects invalid ports", () => {
+    expect(validatePort("0")).toBe(false);
+    expect(validatePort("65536")).toBe(false);
+    expect(validatePort("-1")).toBe(false);
+    expect(validatePort("abc")).toBe(false);
+    expect(validatePort("3.14")).toBe(false);
+  });
+});
+
+describe("validateEmail", () => {
+  it("accepts valid emails", () => {
+    expect(validateEmail("user@example.com")).toBe(true);
+    expect(validateEmail("test+tag@mail.co.uk")).toBe(true);
+  });
+
+  it("rejects invalid emails", () => {
+    expect(validateEmail("not-an-email")).toBe(false);
+    expect(validateEmail("@example.com")).toBe(false);
+    expect(validateEmail("user@")).toBe(false);
+    expect(validateEmail("")).toBe(false);
   });
 });
 
@@ -79,27 +118,29 @@ describe("validateType", () => {
     expect(validateType("42", "number")).toBe(true);
     expect(validateType("true", "boolean")).toBe(true);
     expect(validateType("https://x.com", "url")).toBe(true);
+    expect(validateType("3000", "port")).toBe(true);
+    expect(validateType("u@e.com", "email")).toBe(true);
   });
 });
 
-describe("inferType", () => {
+describe("inferTypeFromValue", () => {
   it("infers boolean", () => {
-    expect(inferType("true")).toBe("boolean");
-    expect(inferType("false")).toBe("boolean");
+    expect(inferTypeFromValue("true").type).toBe("boolean");
+    expect(inferTypeFromValue("false").type).toBe("boolean");
   });
 
   it("infers number", () => {
-    expect(inferType("3000")).toBe("number");
-    expect(inferType("3.14")).toBe("number");
+    expect(inferTypeFromValue("3000").type).toBe("number");
+    expect(inferTypeFromValue("3.14").type).toBe("number");
   });
 
   it("infers url", () => {
-    expect(inferType("https://example.com")).toBe("url");
-    expect(inferType("http://localhost:3000")).toBe("url");
+    expect(inferTypeFromValue("https://example.com").type).toBe("url");
+    expect(inferTypeFromValue("http://localhost:3000").type).toBe("url");
   });
 
   it("defaults to string", () => {
-    expect(inferType("my-app")).toBe("string");
-    expect(inferType("some value")).toBe("string");
+    expect(inferTypeFromValue("my-app").type).toBe("string");
+    expect(inferTypeFromValue("some value").type).toBe("string");
   });
 });
