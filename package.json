@@ -1,0 +1,46 @@
+{
+  "name": "env-doctor",
+  "version": "0.1.0",
+  "description": "Diagnose .env issues in seconds. Find missing, invalid, and insecure environment variables.",
+  "type": "module",
+  "bin": {
+    "env-doctor": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "env",
+    "dotenv",
+    "environment",
+    "variables",
+    "cli",
+    "doctor",
+    "validate",
+    "lint",
+    "check",
+    "ci"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "types": {
+    "PORT": "number",
+    "DEBUG": "boolean",
+    "APP_URL": "url",
+    "DATABASE_URL": "url"
+  },
+  "required": ["DATABASE_URL", "JWT_SECRET"],
+  "dangerousValues": ["your_key_here"]
+}
