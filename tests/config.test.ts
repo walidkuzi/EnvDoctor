@@ -17,7 +17,7 @@ describe("loadConfig", () => {
     expect(config!.required).toContain("DATABASE_URL");
   });
 
-  it("supports Phase 1 simple type strings", () => {
+  it("supports simple type strings", () => {
     const config = loadConfig(BROKEN_DIR);
     expect(config!.types!.PORT).toBe("number");
     expect(config!.types!.DEBUG).toBe("boolean");

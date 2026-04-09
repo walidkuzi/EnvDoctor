@@ -93,7 +93,7 @@ function validateConfig(raw: unknown): Config {
 /**
  * Validate a single type config value.
  * Supports both simple string types ("number") and enum objects ({ type: "enum", values: [...] }).
- * Also supports Phase 1 configs where enum types were not available — any Phase 1 ValueType string is still valid.
+ * Also supports configs where enum types were not available — any ValueType string is still valid.
  */
 function validateTypeValue(key: string, val: unknown): TypeConfigValue {
   // Simple string type

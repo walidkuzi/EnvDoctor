@@ -393,7 +393,7 @@ npm test
 
 ## Roadmap
 
-Phase 1 and Phase 2 are complete. Future ideas include:
+Future ideas include:
 
 - Interactive `init` with guided prompts
 - Source code scanning for used variables
