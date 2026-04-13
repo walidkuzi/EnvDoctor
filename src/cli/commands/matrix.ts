@@ -37,7 +37,7 @@ export function matrixCommand(cwd: string, opts: CommandOptions = {}): number {
   const result = buildMultiEnvMatrix({ files });
 
   if (opts.json) {
-    console.log(renderJSONMatrix(result));
+    console.log(renderJSONMatrix(result, { root: cwd, exitCode: EXIT_OK }));
   } else {
     console.log(renderMatrix(result));
   }

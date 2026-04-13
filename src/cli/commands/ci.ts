@@ -60,7 +60,13 @@ export function ciCommand(cwd: string, opts: CommandOptions = {}): number {
   }
 
   if (opts.json) {
-    console.log(renderJSONAnalysis(result, "ci"));
+    const exitCode =
+      result.summary.errors > 0
+        ? EXIT_ISSUES
+        : opts.failOnWarning && result.summary.warnings > 0
+          ? EXIT_ISSUES
+          : EXIT_OK;
+    console.log(renderJSONAnalysis(result, "ci", { root: cwd, exitCode }));
   } else {
     console.log(renderCIAnalysis(result, opts.quiet));
   }

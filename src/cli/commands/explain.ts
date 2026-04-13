@@ -43,7 +43,8 @@ export function explainCommand(
   });
 
   if (opts.json) {
-    console.log(renderJSONExplain(result));
+    const exitCode = result.issues.length > 0 ? EXIT_ISSUES : EXIT_OK;
+    console.log(renderJSONExplain(result, { root: cwd, exitCode }));
   } else {
     console.log(renderExplain(result));
   }

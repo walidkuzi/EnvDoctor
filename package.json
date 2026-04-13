@@ -1,7 +1,7 @@
 {
   "name": "env-doctor",
-  "version": "0.2.0",
-  "description": "Diagnose .env issues in seconds. Find missing, invalid, and insecure environment variables.",
+  "version": "0.3.0",
+  "description": "Diagnose .env issues in seconds. Scan code, apply safe fixes, and install git hooks.",
   "type": "module",
   "bin": {
     "env-doctor": "./dist/cli/index.js"
