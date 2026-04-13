@@ -1,12 +1,19 @@
 # env-doctor
 
-Diagnose `.env` issues in seconds. Find missing, invalid, and insecure environment variables.
+Diagnose `.env` issues in seconds. Scan your code, apply safe fixes, and wire env-doctor into your git hooks.
 
 ## Why
 
 You cloned a repo, copied `.env.example` to `.env`, and the app still doesn't work. Something is missing, empty, or wrong — but the error message doesn't tell you what.
 
-**env-doctor** reads your `.env` and `.env.example`, compares them, validates types, catches weak secrets, and tells you exactly what's wrong and how to fix it. It works with zero config and supports CI pipelines out of the box.
+**env-doctor** reads your `.env` and `.env.example`, compares them, validates types, catches weak secrets, scans your source code for `process.env.KEY` usage, and can even patch your `.env` for you. It works with zero config and supports CI pipelines out of the box.
+
+## What's new in v0.3
+
+- **`env-doctor scan`** — walks your source tree and finds `process.env.*` / `import.meta.env.*` usage. Flags keys used in code but missing from `.env.example`, defined keys that are never referenced, and high-similarity typos.
+- **`env-doctor fix`** — safe auto-remediation. Dry-run by default, creates a backup before writing, and refuses to overwrite non-empty values unless you pass `--force-overwrite`.
+- **`env-doctor hooks install`** — one-command git hook setup. Detects husky / simple-git-hooks and wires `env-doctor check` into your pre-commit or pre-push stage.
+- **Stable JSON schema** (`schemaVersion: "1.0.0"`) across every command. See [JSON schema](#json-schema).
 
 ## Install
 
@@ -26,6 +33,18 @@ npx env-doctor check
 # Check your .env against .env.example
 npx env-doctor check
 
+# Scan your code for env usage and catch typos
+npx env-doctor scan
+
+# Dry-run the safe auto-fixer
+npx env-doctor fix
+
+# Write the fixes (with backup)
+npx env-doctor fix --apply
+
+# Install env-doctor as a pre-commit hook
+npx env-doctor hooks install
+
 # Generate a config file from .env.example
 npx env-doctor init
 
@@ -43,6 +62,26 @@ npx env-doctor validate
 
 # Run in CI
 npx env-doctor ci
+```
+
+## v0.3 workflow
+
+The recommended flow for a new or existing project:
+
+```bash
+# 1. Get an env-doctor.json seed config
+npx env-doctor init
+
+# 2. Find any env keys your code uses that aren't in .env.example yet
+npx env-doctor scan
+
+# 3. Patch your local .env with missing keys and normalized values
+npx env-doctor fix --apply
+
+# 4. Wire env-doctor into your pre-commit hook so it stays green
+npx env-doctor hooks install
+
+# 5. Add `npx env-doctor ci` to CI
 ```
 
 ## Commands

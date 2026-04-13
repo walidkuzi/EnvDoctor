@@ -55,7 +55,13 @@ export function checkCommand(cwd: string, opts: CommandOptions = {}): number {
   }
 
   if (opts.json) {
-    console.log(renderJSONAnalysis(result, "check"));
+    const exitCode =
+      result.summary.errors > 0
+        ? EXIT_ISSUES
+        : opts.failOnWarning && result.summary.warnings > 0
+          ? EXIT_ISSUES
+          : EXIT_OK;
+    console.log(renderJSONAnalysis(result, "check", { root: cwd, exitCode }));
   } else {
     console.log(renderAnalysis(result));
   }

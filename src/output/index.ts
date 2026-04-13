@@ -1,0 +1,15 @@
+export {
+  SCHEMA_VERSION,
+  TOOL_VERSION,
+  buildJsonEnvelope,
+  envelopeFromAnalysis,
+  serializeEnvelope,
+  toSchemaIssue,
+  computeSchemaSummary,
+  legacySummaryToSchemaSummary,
+  type JsonEnvelope,
+  type SchemaIssue,
+  type SchemaAction,
+  type IssueCode,
+  type BuildEnvelopeInput,
+} from "./schema.js";

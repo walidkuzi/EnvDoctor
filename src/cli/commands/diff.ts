@@ -33,7 +33,8 @@ export function diffCommand(cwd: string, opts: CommandOptions = {}): number {
   const result = diffEntries(env.entries, example.entries);
 
   if (opts.json) {
-    console.log(renderJSONDiff(result));
+    const exitCode = result.onlyInExample.length > 0 ? EXIT_ISSUES : EXIT_OK;
+    console.log(renderJSONDiff(result, { root: cwd, exitCode }));
   } else {
     console.log(renderDiff(result));
   }

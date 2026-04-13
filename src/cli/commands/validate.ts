@@ -7,6 +7,11 @@ import { readFileOrNull } from "../../utils/index.js";
 import { EXIT_OK, EXIT_ISSUES, EXIT_ERROR } from "../../types.js";
 import type { Issue, ValueType } from "../../types.js";
 import type { CommandOptions } from "../options.js";
+import {
+  buildJsonEnvelope,
+  TOOL_VERSION,
+  toSchemaIssue,
+} from "../../output/index.js";
 
 export function validateCommand(cwd: string, opts: CommandOptions = {}): number {
   const envFile = opts.envFile ?? ".env";
@@ -117,14 +122,25 @@ export function validateCommand(cwd: string, opts: CommandOptions = {}): number 
   }
 
   if (opts.json) {
-    const output = {
-      version: "0.2.0",
-      command: "validate",
-      ok: invalidCount === 0,
-      issues,
-      summary: { errors: 0, warnings: invalidCount, infos: 0, total: env.entries.length, valid: env.entries.length - invalidCount },
+    const summary = {
+      errors: 0,
+      warnings: invalidCount,
+      infos: 0,
+      total: env.entries.length,
+      valid: env.entries.length - invalidCount,
     };
-    console.log(JSON.stringify(output, null, 2));
+    const exitCode =
+      invalidCount > 0 && (opts.failOnWarning || false) ? EXIT_ISSUES : invalidCount > 0 ? EXIT_ISSUES : EXIT_OK;
+    const envelope = buildJsonEnvelope({
+      command: "validate",
+      root: cwd,
+      issues: issues.map(toSchemaIssue),
+      exitCode,
+    });
+    // Preserve the legacy `version` and `summary` shape. The `issues`
+    // array in the envelope is the rich schema form (a superset of v0.2).
+    const legacy = { version: TOOL_VERSION, summary };
+    console.log(JSON.stringify({ ...envelope, ...legacy }, null, 2));
   } else {
     if (lines.length <= 1) {
       lines.push(pc.dim("  No typed variables to validate."));
