@@ -200,6 +200,115 @@ PORT                 ✔                ✔                ✖
   ─ PORT missing in .env.production
 ```
 
+### `env-doctor scan`
+
+Walks your source tree and finds env keys referenced in code. Compares them against `.env.example` to catch:
+
+- **Used but undefined** (error) — your code reads a key that isn't in `.env.example`.
+- **Defined but unused** (warning) — a key in `.env.example` is never referenced.
+- **Potential typos** (warning) — a key used in code that's a near-match for a defined key.
+
+```bash
+npx env-doctor scan
+```
+
+```
+Scanned 42 file(s), found 7 env key(s) in code.
+
+✖ Used but undefined (1)
+  ─ STRIPE_SECRET_KEY
+    src/billing.ts:12
+    Add STRIPE_SECRET_KEY to .env.example so teammates know it's required.
+
+⚠ Potential typos (1)
+  ─ DATABSE_URL → DATABASE_URL (score 0.92)
+    src/config.ts:7
+
+⚠ Defined but unused (1)
+  ─ LEGACY_TOKEN
+
+Summary: 1 error, 2 warnings
+```
+
+Supported source patterns: `process.env.KEY`, `process.env["KEY"]`, `process?.env?.KEY`, `import.meta.env.KEY`, `import.meta.env["KEY"]`. Default scan paths: `src`, `app`, `pages`, `server`, `lib`, `packages`. Default extensions: `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, `.cjs`.
+
+| Flag | Description |
+|---|---|
+| `--paths <comma-separated>` | Override default scan paths |
+| `--include <patterns>` | Comma-separated include patterns |
+| `--exclude <patterns>` | Comma-separated exclude patterns |
+| `--min-typo-score <0-1>` | Similarity threshold for typo detection (default `0.82`) |
+
+### `env-doctor fix`
+
+Apply safe, guided fixes to your `.env` file. **Dry-run by default** — pass `--apply` to write changes.
+
+```bash
+# Show what would change
+npx env-doctor fix
+
+# Actually write the fixes (creates .env.bak.<timestamp>)
+npx env-doctor fix --apply
+```
+
+```
+Dry run — 3 fix(es) planned:
+  Run with --apply to write changes.
+
+  ─ Add missing key DATABASE_URL
+    + DATABASE_URL=__REPLACE_ME__
+  ─ Add missing key STRIPE_SECRET_KEY
+    + STRIPE_SECRET_KEY=__REPLACE_ME__
+  ─ Normalize DEBUG to canonical boolean
+    - DEBUG=yes
+    + DEBUG=true
+```
+
+**Fix categories:**
+
+1. Add missing keys from `.env.example` to `.env`.
+2. Normalize boolean values (`yes/no/1/0/TRUE`) to canonical `true|false` for keys typed as boolean.
+3. Trim whitespace in numeric/port values.
+4. Replace dangerous placeholder values with the configured marker (default: `__REPLACE_ME__`).
+5. Optionally remove keys that aren't in `.env.example` (`--remove-unused`).
+6. Optionally drive fixes from a source-code scan (`--from-scan`).
+
+**Safety:**
+
+- Never overwrites a non-empty value unless you pass `--force-overwrite`.
+- Always creates a backup (`.env.bak.<timestamp>`) before mutation, unless `--no-backup`.
+
+| Flag | Description |
+|---|---|
+| `--apply` | Actually write changes (default is dry-run) |
+| `--yes` | Skip interactive confirmations |
+| `--remove-unused` | Remove keys not present in `.env.example` |
+| `--from-scan` | Use scan results to drive fixes (adds used-but-undefined keys) |
+| `--force-overwrite` | Allow overwriting non-empty values |
+| `--no-backup` | Skip `.env` backup |
+| `--placeholder-policy <empty\|example\|todo>` | How to fill missing values (default `todo`) |
+
+### `env-doctor hooks install`
+
+Install env-doctor into your git hook tooling. Detects existing config and merges non-destructively.
+
+```bash
+npx env-doctor hooks install                 # auto-detect tool, pre-commit
+npx env-doctor hooks install --tool husky    # force husky
+npx env-doctor hooks install --stage both    # pre-commit + pre-push
+npx env-doctor hooks install --dry-run       # preview without writing
+```
+
+| Flag | Description |
+|---|---|
+| `--tool <auto\|husky\|simple-git-hooks\|lefthook>` | Hook tool (default `auto`) |
+| `--stage <pre-commit\|pre-push\|both>` | Hook stage (default `pre-commit`) |
+| `--command "<cmd>"` | Command to run in the hook (default `npx env-doctor check`) |
+| `--dry-run` | Show planned changes without writing |
+| `--yes` | Skip interactive confirmations |
+
+env-doctor never installs npm packages for you — it only edits files for tools you already have. If your tool isn't installed or supported (currently lefthook prints manual instructions), you'll get a clear error with copy-pasteable manual steps.
+
 ### `env-doctor validate`
 
 Validate values against expected types — inferred from `.env.example` or configured in `env-doctor.json`.
@@ -327,9 +436,9 @@ env-doctor auto-detects Next.js and Vite projects and provides framework-specifi
 
 Set `"framework": "none"` in config to disable these checks.
 
-## JSON output
+## JSON schema
 
-Add `--json` to any command for machine-readable output:
+Add `--json` to any command for machine-readable output. Every command emits the same stable envelope, versioned with `schemaVersion`.
 
 ```bash
 npx env-doctor check --json
@@ -337,11 +446,18 @@ npx env-doctor check --json
 
 ```json
 {
-  "version": "0.2.0",
+  "schemaVersion": "1.0.0",
+  "toolVersion": "0.3.0",
   "command": "check",
   "ok": false,
+  "timestamp": "2026-04-10T16:30:01.338Z",
+  "project": {
+    "root": "/path/to/your/project",
+    "framework": "unknown"
+  },
   "issues": [
     {
+      "code": "MISSING",
       "kind": "missing",
       "severity": "error",
       "key": "DATABASE_URL",
@@ -350,15 +466,58 @@ npx env-doctor check --json
       "example": "DATABASE_URL=postgres://user:pass@localhost:5432/app"
     }
   ],
+  "actions": [],
   "summary": {
     "errors": 1,
     "warnings": 0,
     "infos": 0,
-    "total": 5,
-    "valid": 5
-  }
+    "totalIssues": 1
+  },
+  "exitCode": 1
 }
 ```
+
+### Top-level fields
+
+| Field | Type | Description |
+|---|---|---|
+| `schemaVersion` | string | Stable schema version. Bumps only on breaking field changes. |
+| `toolVersion` | string | The env-doctor version that produced this output. |
+| `command` | string | The subcommand that was invoked (e.g. `"check"`, `"scan"`, `"fix"`). |
+| `ok` | boolean | `true` iff there are no `error`-severity issues. |
+| `timestamp` | string | ISO-8601 timestamp. |
+| `project.root` | string | Absolute path to the project root. |
+| `project.framework` | string | `"nextjs"`, `"vite"`, `"none"`, or `"unknown"`. |
+| `issues[]` | array | Detected issues. See [issue codes](#issue-codes). |
+| `actions[]` | array | Planned or applied mutations (used by `fix` and `hooks install`). |
+| `summary` | object | `{ errors, warnings, infos, totalIssues }` |
+| `exitCode` | number | The process exit code that env-doctor will use. |
+| `data` | object? | Command-specific extra fields. |
+
+### Issue codes
+
+Stable, machine-actionable codes you can switch on:
+
+| Code | Source command | Severity |
+|---|---|---|
+| `MISSING` | check, ci | error |
+| `EXTRA` | check, ci | info |
+| `EMPTY` | check, ci | warning |
+| `INVALID_TYPE` | check, validate | warning |
+| `INVALID_ENUM` | check, validate | warning |
+| `DANGEROUS_VALUE` | check | warning |
+| `PLACEHOLDER_VALUE` | check | warning |
+| `FRAMEWORK_WARNING` | check | warning/info |
+| `PARSE_WARNING` | check | warning |
+| `USED_BUT_UNDEFINED` | scan | error |
+| `DEFINED_BUT_UNUSED` | scan | warning |
+| `POTENTIAL_TYPO` | scan | warning |
+| `FIX_APPLIED` / `FIX_SKIPPED` | fix | info / warning |
+| `HOOK_INSTALLED` / `HOOK_ALREADY_PRESENT` / `HOOK_UNSUPPORTED_TOOL` | hooks install | info / info / error |
+
+### Backward compatibility
+
+The v0.3 envelope is a **strict superset** of the v0.2 JSON shape. The `version`, `summary` (with `total`/`valid`), and command-specific top-level fields (e.g. `onlyInExample`, `keys`, `matrix`) from v0.2 are still emitted alongside the new envelope fields.
 
 ## CI usage
 
@@ -428,17 +587,24 @@ npm run test:watch # Re-run tests on changes
 npm test
 ```
 
-144 tests covering parsing, validation, type inference, analysis, dangerous value detection, framework heuristics, multi-env comparison, explain logic, config loading, JSON output, and CLI commands.
+222 tests covering parsing, validation, type inference, analysis, dangerous value detection, framework heuristics, multi-env comparison, explain logic, config loading, the scanner, the fixer, hook installation, the unified JSON schema, and CLI commands.
 
 ## Roadmap
 
-Future ideas include:
+Shipped in v0.3:
 
+- ✅ Source code scanning for used variables (`scan`)
+- ✅ Safe auto-fixer (`fix`)
+- ✅ Git hook integration (`hooks install`)
+- ✅ Stable JSON schema contract
+
+Future ideas for v0.4+:
+
+- Scanner support for destructuring (`const { KEY } = process.env`)
 - Interactive `init` with guided prompts
-- Source code scanning for used variables
-- Git hook integration
-- Custom validation rules
-- `.env` file generation from `.env.example`
+- SARIF export for CI annotations
+- `fix --write-contract` to sync `.env.example` from scanned usage
+- VS Code extension
 - Plugin system for custom frameworks
 
 ## Contributing
